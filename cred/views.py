@@ -16,6 +16,9 @@ from cred.icon import get_icon_list
 
 from django.contrib.auth.models import Group
 
+import syslog
+if settings.SYSLOG_OUTPUT:
+    syslog.openlog( 'rattic', 0, syslog.LOG_LOCAL4 )
 
 @login_required
 def download(request, cfilter="special", value="all"):
@@ -199,6 +202,8 @@ def detail(request, cred_id):
         raise Http404
 
     CredAudit(audittype=CredAudit.CREDVIEW, cred=cred, user=request.user).save()
+    if settings.SYSLOG_OUTPUT:
+        syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDVIEW, cred, request.user))
 
     if request.user.is_staff:
         credlogs = cred.logs.all()[:5]
@@ -237,6 +242,8 @@ def downloadattachment(request, cred_id, typ="attachment"):
 
     # Write the audit log, as a password view
     CredAudit(audittype=CredAudit.CREDPASSVIEW, cred=cred, user=request.user).save()
+    if settings.SYSLOG_OUTPUT:
+        syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDPASSVIEW, cred, request.user))
 
     # Send the result back in a way that prevents the browser from executing it,
     # forces a download, and names it the same as when it was uploaded.
@@ -286,6 +293,8 @@ def add(request):
         if form.is_valid():
             form.save()
             CredAudit(audittype=CredAudit.CREDADD, cred=form.instance, user=request.user).save()
+            if settings.SYSLOG_OUTPUT:
+                syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDADD, form.instance, request.user))
             return HttpResponseRedirect(reverse('cred.views.list'))
     else:
         form = CredForm(request.user)
@@ -326,6 +335,8 @@ def edit(request, cred_id):
 
             # Create audit log
             CredAudit(audittype=chgtype, cred=cred, user=request.user).save()
+            if settings.SYSLOG_OUTPUT:
+                syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (chgtype, cred, request.user))
             form.save()
 
             # If we dont have anywhere to go, go to the details page
@@ -336,6 +347,8 @@ def edit(request, cred_id):
     else:
         form = CredForm(request.user, instance=cred)
         CredAudit(audittype=CredAudit.CREDPASSVIEW, cred=cred, user=request.user).save()
+        if settings.SYSLOG_OUTPUT:
+            syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDPASSVIEW, cred, request.user))
 
     return render(request, 'cred_edit.html', {'form': form,
         'action': reverse('cred.views.edit', args=(cred.id,)),
@@ -365,10 +378,14 @@ def delete(request, cred_id):
         raise Http404
     if request.method == 'POST':
         CredAudit(audittype=CredAudit.CREDDELETE, cred=cred, user=request.user).save()
+        if settings.SYSLOG_OUTPUT:
+            syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDDELETE, cred, request.user))
         cred.delete()
         return HttpResponseRedirect(reverse('cred.views.list'))
 
     CredAudit(audittype=CredAudit.CREDVIEW, cred=cred, user=request.user).save()
+    if settings.SYSLOG_OUTPUT:
+        syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDVIEW, cred, request.user))
 
     return render(request, 'cred_detail.html', {'cred': cred, 'lastchange': lastchange, 'action': reverse('cred.views.delete', args=(cred_id,)), 'delete': True})
 
@@ -422,6 +439,8 @@ def addtoqueue(request, cred_id):
         raise Http404
     CredChangeQ.objects.add_to_changeq(cred)
     CredAudit(audittype=CredAudit.CREDSCHEDCHANGE, cred=cred, user=request.user).save()
+    if settings.SYSLOG_OUTPUT:
+        syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDSCHEDCHANGE, cred, request.user))
     return HttpResponseRedirect(reverse('cred.views.list', args=('special', 'changeq')))
 
 
@@ -431,6 +450,8 @@ def bulkdelete(request):
     for c in todel:
         if c.is_owned_by(request.user) and c.latest is None:
             CredAudit(audittype=CredAudit.CREDDELETE, cred=c, user=request.user).save()
+            if settings.SYSLOG_OUTPUT:
+                syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDDELETE, c, request.user))
             c.delete()
 
     redirect = request.POST.get('next', reverse('cred.views.list'))
@@ -443,6 +464,8 @@ def bulkundelete(request):
     for c in toundel:
         if c.is_owned_by(request.user):
             CredAudit(audittype=CredAudit.CREDADD, cred=c, user=request.user).save()
+            if settings.SYSLOG_OUTPUT:
+                syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDADD, c, request.user) )
             c.is_deleted = False
             c.save()
 
@@ -456,6 +479,8 @@ def bulkaddtoqueue(request):
     for c in tochange:
         if c.is_owned_by(request.user) and c.latest is None:
             CredAudit(audittype=CredAudit.CREDSCHEDCHANGE, cred=c, user=request.user).save()
+            if settings.SYSLOG_OUTPUT:
+                syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDSCHEDCHANGE, c, request.user) )
             CredChangeQ.objects.add_to_changeq(c)
 
     redirect = request.POST.get('next', reverse('cred.views.list'))
@@ -469,6 +494,8 @@ def bulktagcred(request):
     for c in tochange:
         if c.is_owned_by(request.user) and c.latest is None:
             CredAudit(audittype=CredAudit.CREDMETACHANGE, cred=c, user=request.user).save()
+            if settings.SYSLOG_OUTPUT:
+                syslog.syslog(syslog.LOG_INFO, 'audittype=%s cred="%s" user=%s' % (CredAudit.CREDMETACHANGE, c, request.user) )
             c.tags.add(tag)
 
     redirect = request.POST.get('next', reverse('cred.views.list'))
