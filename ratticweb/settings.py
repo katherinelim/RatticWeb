@@ -185,7 +185,10 @@ LOGGING = {
     'formatters': {
         'console_format': {
             'format': '%(asctime)s [%(levelname)s] %(message)s'
-        }
+        },
+        'syslog_format': {
+            'format': 'rattic: %(message)s'
+        },
     },
     'filters': {
         'require_debug_false': {
@@ -202,7 +205,14 @@ LOGGING = {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'console_format'
-        }
+        },
+        'syslog': {
+            'level': 'INFO',
+            'class': 'logging.handlers.SysLogHandler',
+            'facility': 'authpriv',
+            'address': '/dev/log',
+            'formatter': 'syslog_format'
+        },
     },
     'loggers': {
         'django_auth_ldap': {
@@ -215,6 +225,11 @@ LOGGING = {
         },
         'db_backup': {
             'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'cred_audit': {
+            'handlers': ['syslog'],
             'level': 'INFO',
             'propagate': True,
         },
@@ -266,6 +281,7 @@ HOSTNAME = config.get('ratticweb', 'hostname')
 RATTIC_MAX_ATTACHMENT_SIZE = int(config.get('ratticweb', 'max_attachment_size'))
 RATTIC_DISABLE_EXPORT = config.getboolean('ratticweb', 'disable_export')
 LOGINLESS_SSH_FINGERPRINTS = config.getboolean("ratticweb", "loginless_ssh_fingerprints")
+CREDAUDIT_LOGGER_OUTPUT = config.getboolean("ratticweb", "credaudit_logger_output")
 
 # Allow SSL termination outside RatticDB
 if confget('ratticweb', 'ssl_header', False):
